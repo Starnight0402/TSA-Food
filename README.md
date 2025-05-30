@@ -1,29 +1,21 @@
-# Training Audit App
+# Third Wave Coffee Training Audit Checklist
 
-This app allows auditors to fill out a training checklist and automatically sends a summary to the specified email address using your Microsoft account.
+This is a self-contained static page to run a Training Audit Checklist:
+- Fills out auditor/store/employee info
+- Prompts Yes/No/N/A for each weighted item
+- Exports an `.xlsx` log with score + percentage
 
-## Features
-- YES/NO/N/A checklist form
-- Score calculation and rating
-- Email summary via Microsoft SMTP (Outlook)
+## Usage
 
-## Setup
+1. Clone or download this repo.
+2. Open `index.html` in your browser.
+3. Complete the form and click **Download Excel Log**.
 
-1. Clone the repository
-2. Create a `.env` file with:
-```
-EMAIL_ADDRESS=your_email@outlook.com
-EMAIL_PASSWORD=your_app_password
-```
-3. Install dependencies:
-```
-pip install -r requirements.txt
-```
-4. Run locally:
-```
-python app.py
-```
+## Deploy via GitHub Pages
 
-## Deployment
-- Deploy to [Render](https://render.com) or similar
-- Set environment variables `EMAIL_ADDRESS` and `EMAIL_PASSWORD` in dashboard
+1. Go to **Settings → Pages**.
+2. Under “Source,” select the `main` branch and `/ (root)`.
+3. Your checklist will be live at:
+   ```
+   https://<your-username>.github.io/training-audit-checklist/
+   ```
