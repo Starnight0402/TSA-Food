@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TSA | Food</title>
+  <meta name="description" content="Audit checklist for training at Third Wave Coffee." />
+  <meta name="theme-color" content="#f8fafc" />
+  <link rel="icon" href="/favicon.ico" />
+  <meta property="og:title" content="TSA | Food" />
+  <meta property="og:description" content="Audit checklist for training at Third Wave Coffee." />
+  <meta property="og:type" content="website" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+  <style>
+    .fade-in { opacity: 0; animation: fadeIn 0.6s forwards; }
+    @keyframes fadeIn { to { opacity: 1; } }
+    .report-box {
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 2px solid #e0e7ef;
+      box-shadow: 0 2px 8px #e0e7ef77;
+    }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: bold;
+      text-align: center;
+      margin: 0;
+      padding: 8px 0 8px 0;
+      color: #293241;
+    }
+    .autotable-header {
+      color: #23272f !important;
+      background: #e3e8f2 !important;
+      font-weight: bold !important;
+      font-size: 11px !important;
+      text-align: center !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const params = new URLSearchParams(window.location.search);
+    const auditorName = params.get('auditorName')||params.get('name')||'';
+    const auditorId   = params.get('auditorId')||params.get('id')||'';
+    const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwWDRWp8MxWidcQulsdcrtIOB6YLMQj5r2HpWszWgnigiVMlYWlkvOubjfAYeUxFvriYg/exec';
+    const safeVibrate = pattern => { if(navigator?.vibrate) navigator.vibrate(pattern); };
+    const safeLS = { get:k=>{try{return localStorage.getItem(k)}catch{return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}, clear:()=>{try{localStorage.clear()}catch{}} };
+
+    // Checklist Data & Scoring
+    const SECTIONS = [
+      { id:'PersonalHygiene', title:'Personal Hygiene', items:[
+        {id:'PH_1',q:'Well-groomed as per TWC standards (uniform, nails, hair)',w:1},
+        {id:'PH_2',q:'Washed and sanitized hands every 30 mins',w:1},
+        {id:'PH_3',q:'Wears gloves or avoids direct food contact',w:1}
+      ]},
+      { id:'StationReadiness', title:'Station Readiness', items:[
+        {id:'SR_1',q:'All ingredients available for the day',w:1},
+        {id:'SR_2',q:'All smallware available & in correct use',w:1},
+        {id:'SR_3',q:'Station cleaned and sanitized',w:1},
+        {id:'SR_4',q:'Station and smallware organized and clean',w:1},
+        {id:'SR_5',q:'Clean dusters available at the station',w:1},
+        {id:'SR_6',q:'FDU is 70% or more stocked, clean, follows planogram',w:1},
+        {id:'SR_7',q:'MRD stickers used correctly (FDU + Make Line)',w:1},
+        {id:'SR_8',q:'Products stored at correct temperature',w:1}
+      ]},
+      { id:'FoodPrep', title:'Food Preparation & Handling', items:[
+        {id:'FP_1',q:'Food Item 1: Recipe followed per SOP',w:1},
+        {id:'FP_2',q:'Food Item 1: Build followed per SOP',w:1},
+        {id:'FP_3',q:'Food Item 2: Recipe followed per SOP',w:1},
+        {id:'FP_4',q:'Food Item 2: Build followed per SOP',w:1},
+        {id:'FP_5',q:'Used correct tools for preparation',w:1},
+        {id:'FP_6',q:'Used appropriate key to heat/warm food',w:1},
+        {id:'FP_7',q:'Gloves changed correctly (veg/non-veg switch or as per TWC guidelines)',w:1},
+        {id:'FP_8',q:'Consistently follows Clean-As-You-Go',w:1},
+        {id:'FP_9',q:'Correct duster used for station cleaning',w:1},
+        {id:'FP_10',q:'Follows First-In-First-Out for food items',w:1},
+        {id:'FP_11',q:'Products checked visually before serving',w:1},
+        {id:'FP_12',q:'Chips, condiments, cutlery, etc., provided per SOP',w:1}
+      ]},
+      { id:'StandardsOwnership', title:'Standards Ownership', items:[
+        {id:'SO_1',q:'Serves only food that meets TWC standards (fresh, safe, proper temp, visually appealing); knows what to do if not',w:1}
+      ]}
+    ];
+    const optionColors = { yes:'green', no:'red', na:'yellow' };
+    const options = Object.entries(optionColors);
+
+    const colorMap = {
+      yes: {
+        selected: "bg-green-200 ring-2 ring-green-500 hover:bg-green-300",
+        base: "bg-green-100 hover:bg-green-300"
+      },
+      no: {
+        selected: "bg-red-200 ring-2 ring-red-500 hover:bg-red-300",
+        base: "bg-red-100 hover:bg-red-300"
+      },
+      na: {
+        selected: "bg-yellow-200 ring-2 ring-yellow-500 hover:bg-yellow-300",
+        base: "bg-yellow-100 hover:bg-yellow-300"
+      }
+    };
+
+    function App(){
+      const [resp,setResp]=useState(()=>JSON.parse(safeLS.get('resp')||'{}'));
+      const [employeeName, setEmployeeName] = useState(safeLS.get('employeeName') || '');
+      const [employeeId, setEmployeeId] = useState(safeLS.get('employeeId') || '');
+      const [imgs,setImgs]=useState(()=>JSON.parse(safeLS.get('imgs')||'{}'));
+      const [remarks, setRemarks] = useState(() => JSON.parse(safeLS.get('remarks') || '{}')); // REMARKS
+      const [downloading,setDownloading]=useState(false);
+      const [downloaded, setDownloaded] = useState(false);
+      const [showPopup, setShowPopup] = useState(false);
+
+      useEffect(()=>{
+        safeLS.set('resp',JSON.stringify(resp));
+        safeLS.set('employeeName',employeeName);
+        safeLS.set('employeeId',employeeId);
+        safeLS.set('imgs',JSON.stringify(imgs));
+        safeLS.set('remarks', JSON.stringify(remarks)); // REMARKS
+      },[resp,employeeName,employeeId,imgs,remarks]); // REMARKS
+
+      const handleOption=(sec,it,val)=>{
+        const key=`${sec.id}_${it.id}`;
+        setResp(p=>({...p,[key]:val}));
+        if(navigator?.vibrate){
+          if(val==='yes')safeVibrate(50);
+          else if(val==='no')safeVibrate([50,50]);
+        }
+      };
+      const handleTSA=(sec,it,val)=>{
+        const key=`${sec.id}_${it.id}`;
+        setResp(p=>({...p,[key]:val}));
+        if(navigator?.vibrate) safeVibrate(50);
+      };
+      const addImages=(sec,e)=>{
+        Array.from(e.target.files).forEach(f=>{
+          EXIF.getData(f,function(){
+            const r=new FileReader();
+            r.onload=ev=>setImgs(p=>({...p,[sec.id]:[...(p[sec.id]||[]),ev.target.result]}));
+            r.readAsDataURL(f);
+          });
+        });
+        e.target.value=null;
+      };
+      // Check completion
+      const allDone = employeeName.trim() && employeeId.trim() &&
+        SECTIONS.every(sec=>sec.items.every(it=>resp[`${sec.id}_${it.id}`]!=null));
+
+      // SUBMIT & PDF
+      const handleSubmit=async e=>{
+        e.preventDefault();
+        if(!allDone){safeVibrate([200,200]);return;}
+        setDownloading(true);
+        // Score calculation
+        let total=0, max=0, sectionScores={}, sectionMax={};
+        SECTIONS.forEach(sec=>{
+          let secTotal=0, secMax=0;
+          sec.items.forEach(it=>{
+            const key=`${sec.id}_${it.id}`,r=resp[key];
+            if(sec.id==='TSA'){const v=parseInt(r)||0; secTotal+=v; secMax+=it.w;}
+            else{
+              if(r==='yes')secTotal+=it.w;
+              else if(r==='no' && it.wneg)secTotal+=it.wneg;
+              if(r!=='na')secMax+=Math.abs(it.w);
+            }
+          });
+          sectionScores[sec.id]=secTotal;
+          sectionMax[sec.id]=secMax;
+          total+=secTotal;max+=secMax;
+        });
+        const pct = max?Math.round((total/max)*100):0;
+        const completion=new Date().toLocaleString('en-GB',{hour12:false});
+        // Logging
+        const data = new URLSearchParams({
+          date: completion,
+          auditorName, auditorId, employeeName, employeeId,
+          score: total, percentage: pct
+        });
+        try {
+          await fetch(LOG_ENDPOINT, { method: "POST", body: data });
+        } catch {}
+        safeVibrate(100);
+        // PDF Generation
+        const {jsPDF}=window.jspdf;
+        const doc=new jsPDF({orientation:'portrait',unit:'mm'});
+        const sectionBg = [
+          '#E3F6FC','#FEF6E4','#E4F7EE','#FFF1F6','#F1F2FB',
+          '#FFF5DA','#F8F9F9','#F5F6F6'
+        ];
+
+        // HEADER
+        doc.setFillColor('#FFFFFF');
+        doc.rect(10,10,190,20,'F');
+        doc.setFontSize(20);
+        doc.setFont('helvetica','bold');
+        doc.setTextColor('#263140');
+        doc.text(`TSA Food | ${employeeName}`, 105, 19, {align:'center'});
+        doc.setFontSize(10);
+        doc.setFont('helvetica','normal');
+        doc.setTextColor('#24272e');
+        doc.text(`Date/Time: ${completion}  |`,10,28);
+        doc.text(` Auditor: ${auditorName}  |`,65,28);
+        doc.text(`EmployeeID: ${employeeId}  |`,115,28);
+        doc.setFontSize(17);
+        doc.setFont('helvetica','bold');
+        doc.setTextColor('#086972');
+        doc.text(`Score: ${total} / ${max} | ${pct}% `,202, 28, {align:'right'});
+
+        let y = 40;
+        for(let s=0;s<SECTIONS.length;s++){
+          const sec=SECTIONS[s];
+          const bg = sectionBg[s%sectionBg.length];
+          // Pre-box: measure table height
+          const rows = sec.items.map(it=>{
+            const key = `${sec.id}_${it.id}`;
+            const r = resp[key];
+            let respText = (sec.id==='TSA')?r:(r==='yes'?'Yes':r==='no'?'No':r==='na'?'NA':r);
+            let score = (sec.id==='TSA')? (parseInt(r)||0):(r==='yes'?it.w:(r==='no'&&it.wneg?it.wneg:0));
+            return [it.q, respText, score];
+          });
+
+          // Section title in box
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(13);
+          doc.setFillColor(bg);
+          doc.roundedRect(13, y, 184, 12, 9, 9, 'F');
+          doc.setFontSize(12);
+          doc.setTextColor('#23272f');
+          doc.text(`${sec.title}  (Score: ${sectionScores[sec.id]} / ${sectionMax[sec.id]})`, 105, y+8, {align:'center'});
+
+          // Table below title, inside box
+          doc.autoTable({
+            startY: y+12,
+            head:[['Question','Response','Score']],
+            body: rows.map(row=>row.slice(0,3)),
+            margin:{left:18,right:18},
+            styles:{fontSize:9,cellPadding:2,textColor:'#23272f'},
+            headStyles:{fillColor:'#dbeafe',textColor:'#23272f',fontStyle:'bold'},
+            tableLineColor:'#c3dafe',tableLineWidth:0.7,
+            theme:'grid',
+            showHead:'everyPage'
+          });
+
+          let nextY = doc.lastAutoTable.finalY + 4;
+
+          // REMARKS: Insert remarks below table, above images
+          if (remarks[sec.id] && remarks[sec.id].trim()) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(10);
+            doc.setTextColor('#444');
+            let splitRemarks = doc.splitTextToSize('Remarks: ' + remarks[sec.id], 170);
+            doc.text(splitRemarks, 18, nextY);
+            nextY += splitRemarks.length * 6 + 2;
+          }
+
+          // IMAGES (below remarks, still in section box)
+          let imgH = 0;
+          if(imgs[sec.id] && imgs[sec.id].length){
+  let imgPerRow = 6;
+  let imgW = 24, imgH = 24, gap = 6;
+  let baseX = 18, baseY = nextY;
+  imgs[sec.id].forEach((src, i)=>{
+    let row = Math.floor(i / imgPerRow);
+    let col = i % imgPerRow;
+    let x = baseX + col * (imgW + gap);
+    let y = baseY + row * (imgH + gap);
+    if(y > 265){ doc.addPage(); baseY = 20; y = baseY; }
+    doc.addImage(src,'JPEG', x, y, imgW, imgH);
+    imgH = Math.max(imgH, 24);
+  });
+  let rows = Math.ceil(imgs[sec.id].length / imgPerRow);
+  nextY = baseY + rows * (imgH + gap) + 2;
+}
+          // Now draw the box *after* knowing full height
+          const boxH = nextY-y+3;
+          doc.setDrawColor('#b5bfc7');
+          doc.setLineWidth(1.1);
+          doc.roundedRect(13, y, 184, boxH, 9, 9);
+          y = nextY+8;
+          if(y>200 && s!==SECTIONS.length-1){ doc.addPage(); y=20;}
+        }
+        doc.save(`audit_${employeeName}_${Date.now()}.pdf`);
+        setDownloading(false);
+        setDownloaded(true);
+        setShowPopup(true);
+        setTimeout(()=>{
+          setDownloaded(false);
+          setShowPopup(false);
+        }, 3000);
+      };
+
+      const resetAll=()=>{
+        safeLS.clear();
+        setResp({});
+        setEmployeeName('');
+        setEmployeeId('');
+        setImgs({});
+        setRemarks({}); // REMARKS
+        safeVibrate([200,200]);
+      };
+
+      // UI
+      return(
+        <>
+          {showPopup && (
+            <div style={{position:'fixed',top:'30%',left:'50%',transform:'translate(-50%,-50%)',zIndex:9999}} className="px-6 py-4 bg-green-600 text-white rounded-lg shadow-lg text-center fade-in">
+              Report downloaded!
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-6 p-3 pt-4 max-w-2xl mx-auto">
+            <h1 className="text-xl sm:text-2xl font-bold text-center mb-2">TSA | Food</h1>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-2">
+              <div>
+                <label className="block text-xs font-semibold">Auditor Name</label>
+                <input id="auditorName" readOnly value={auditorName} className="w-full p-2 border rounded bg-gray-100"/>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold">Auditor ID</label>
+                <input id="auditorId" readOnly value={auditorId} className="w-full p-2 border rounded bg-gray-100"/>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold">Employee Name</label>
+                <input id="employeeName" value={employeeName} onChange={e=>{setEmployeeName(e.target.value);safeLS.set('employeeName',e.target.value);}} required className="w-full p-2 border rounded"/>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold">Employee ID</label>
+                <input id="employeeId" value={employeeId} onChange={e=>{setEmployeeId(e.target.value);safeLS.set('employeeId',e.target.value);}} required className="w-full p-2 border rounded"/>
+              </div>
+            </div>
+            {SECTIONS.map(sec=>(
+              <div key={sec.id} id={`${sec.id}-section`} className="mb-4 report-box p-2 fade-in">
+                <h2 className="section-title">{sec.title}</h2>
+                <table className="w-full border-collapse mt-1 mb-2">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border px-2 py-1 text-left text-xs font-bold">Question</th>
+                      {sec.id==='TSA'
+                        ? [10,5,0].map(val=><th key={val} className="border px-2 py-1 text-center text-xs">{val}</th>)
+                        : options.map(([opt])=><th key={opt} className="border px-2 py-1 text-center text-xs uppercase">{opt}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sec.items.map(it=>{
+                      const key=`${sec.id}_${it.id}`;
+                      return (
+                        <tr id={key} key={it.id} className="even:bg-gray-50 hover:bg-gray-50">
+                          <td className="border px-2 py-1">{it.q}</td>
+                          {sec.id==='TSA'
+                            ? [10,5,0].map(val=>{
+                                const sel=resp[key]===String(val);
+                                return (
+                                  <td key={val} className="border px-2 py-1 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={()=>handleTSA(sec,it,String(val))}
+                                      className={`${sel?'bg-blue-200 ring-2 ring-blue-500':'bg-gray-200'} hover:bg-blue-300 px-2 py-0.5 text-xs rounded-full transition`}
+                                    >{val}</button>
+                                  </td>
+                                );
+                              })
+                            : options.map(([opt])=>{
+                                const sel=resp[key]===opt;
+                                return (
+                                  <td key={opt} className="border px-2 py-1 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={()=>handleOption(sec,it,opt)}
+                                      className={
+                                        sel
+                                          ? `${colorMap[opt].selected} px-2 py-0.5 text-xs rounded-full transition`
+                                          : `${colorMap[opt].base} px-2 py-0.5 text-xs rounded-full transition`
+                                      }
+                                    >{opt.toUpperCase()}</button>
+                                  </td>
+                                );
+                              })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {/* REMARKS: Add remarks textarea for each section */}
+                <div className="mt-2 fade-in">
+                  <label className="block text-xs font-semibold">Section Remarks</label>
+                  <textarea
+                    value={remarks[sec.id] || ''}
+                    onChange={e => setRemarks(r => ({ ...r, [sec.id]: e.target.value }))}
+                    className="w-full p-2 border rounded mt-1"
+                    placeholder="Enter remarks for this section (optional)"
+                    rows={2}
+                  />
+                </div>
+                {/* Images */}
+                <div className="mt-2 fade-in">
+                  <label className="block text-xs font-semibold">Upload Images</label>
+                  <input type="file" accept="image/*" capture="environment" multiple onChange={e=>addImages(sec,e)} className="mt-1"/>
+                  <div className="flex space-x-2 mt-2 overflow-x-auto">
+                    {(imgs[sec.id]||[]).map((s,i)=><img key={i} src={s} className="w-16 h-16 object-cover rounded-md border"/>) }
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="flex space-x-4 fade-in">
+              <button type="button" onClick={resetAll} className="flex-1 bg-blue-100 py-3 rounded-full hover:bg-blue-200 transition">New Response</button>
+              <button type="submit" className={`flex-1 bg-green-100 py-3 rounded-full hover:bg-green-200 transition ${downloading?'opacity-70 pointer-events-none':''}`}>
+                {downloading? 'Generating Report...':'Submit & Download PDF'}
+              </button>
+            </div>
+          </form>
+        </>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
