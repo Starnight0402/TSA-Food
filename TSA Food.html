@@ -47,47 +47,68 @@
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect } = React;
-    const params = new URLSearchParams(window.location.search);
-    const auditorName = params.get('auditorName')||params.get('name')||'';
-    const auditorId   = params.get('auditorId')||params.get('id')||'';
+    // Robust URL parameter extraction
+    function getParam(name) {
+      const params = new URLSearchParams(window.location.search);
+      const val = params.get(name);
+      return val ? decodeURIComponent(val.replace(/\+/g, ' ')) : '';
+    }
+    const auditorName = getParam('auditorName') || getParam('name') || '';
+    const auditorId   = getParam('auditorId') || getParam('id') || '';
     const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwWDRWp8MxWidcQulsdcrtIOB6YLMQj5r2HpWszWgnigiVMlYWlkvOubjfAYeUxFvriYg/exec';
     const safeVibrate = pattern => { if(navigator?.vibrate) navigator.vibrate(pattern); };
     const safeLS = { get:k=>{try{return localStorage.getItem(k)}catch{return null}}, set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}, clear:()=>{try{localStorage.clear()}catch{}} };
 
-    // Checklist Data & Scoring
+    // Checklist Data & Scoring (UPDATED)
     const SECTIONS = [
-      { id:'PersonalHygiene', title:'Personal Hygiene', items:[
-        {id:'PH_1',q:'Well-groomed as per TWC standards (uniform, nails, hair)',w:1},
-        {id:'PH_2',q:'Washed and sanitized hands every 30 mins',w:1},
-        {id:'PH_3',q:'Wears gloves or avoids direct food contact',w:1}
-      ]},
-      { id:'StationReadiness', title:'Station Readiness', items:[
-        {id:'SR_1',q:'All ingredients available for the day',w:1},
-        {id:'SR_2',q:'All smallware available & in correct use',w:1},
-        {id:'SR_3',q:'Station cleaned and sanitized',w:1},
-        {id:'SR_4',q:'Station and smallware organized and clean',w:1},
-        {id:'SR_5',q:'Clean dusters available at the station',w:1},
-        {id:'SR_6',q:'FDU is 70% or more stocked, clean, follows planogram',w:1},
-        {id:'SR_7',q:'MRD stickers used correctly (FDU + Make Line)',w:1},
-        {id:'SR_8',q:'Products stored at correct temperature',w:1}
-      ]},
-      { id:'FoodPrep', title:'Food Preparation & Handling', items:[
-        {id:'FP_1',q:'Food Item 1: Recipe followed per SOP',w:1},
-        {id:'FP_2',q:'Food Item 1: Build followed per SOP',w:1},
-        {id:'FP_3',q:'Food Item 2: Recipe followed per SOP',w:1},
-        {id:'FP_4',q:'Food Item 2: Build followed per SOP',w:1},
-        {id:'FP_5',q:'Used correct tools for preparation',w:1},
-        {id:'FP_6',q:'Used appropriate key to heat/warm food',w:1},
-        {id:'FP_7',q:'Gloves changed correctly (veg/non-veg switch or as per TWC guidelines)',w:1},
-        {id:'FP_8',q:'Consistently follows Clean-As-You-Go',w:1},
-        {id:'FP_9',q:'Correct duster used for station cleaning',w:1},
-        {id:'FP_10',q:'Follows First-In-First-Out for food items',w:1},
-        {id:'FP_11',q:'Products checked visually before serving',w:1},
-        {id:'FP_12',q:'Chips, condiments, cutlery, etc., provided per SOP',w:1}
-      ]},
-      { id:'StandardsOwnership', title:'Standards Ownership', items:[
-        {id:'SO_1',q:'Serves only food that meets TWC standards (fresh, safe, proper temp, visually appealing); knows what to do if not',w:1}
-      ]}
+      {
+        id: 'PersonalHygiene',
+        title: 'Personal Hygiene',
+        items: [
+          { id: 'PH_1', q: 'Well-groomed as per TWC standards (uniform, nails, hair)', w: 1 },
+          { id: 'PH_2', q: 'Washed and sanitized hands every 30 mins', w: 1 },
+          { id: 'PH_3', q: 'Wears gloves or avoids direct food contact', w: 1 }
+        ]
+      },
+      {
+        id: 'StationReadiness',
+        title: 'Station Readiness',
+        items: [
+          { id: 'SR_1', q: 'All ingredients available for the day', w: 1 },
+          { id: 'SR_2', q: 'All smallware available & in correct use', w: 1 },
+          { id: 'SR_3', q: 'Station cleaned and sanitized', w: 1 },
+          { id: 'SR_4', q: 'Station and smallware organized and clean', w: 1 },
+          { id: 'SR_5', q: 'Clean dusters available at the station', w: 1 },
+          { id: 'SR_6', q: 'FDU AT LEAST 70% stocked, clean, follows planogram', w: 1 },
+          { id: 'SR_7', q: 'MRD stickers used correctly (FDU + Make Line)', w: 1 },
+          { id: 'SR_8', q: 'Products stored at correct temperature', w: 1 }
+        ]
+      },
+      {
+        id: 'FoodPrep',
+        title: 'Food Preparation & Handling',
+        items: [
+          { id: 'FP_1', q: 'Recipe followed per SOP (Food Item 1)', w: 1 },
+          { id: 'FP_2', q: 'Build followed per SOP (Food Item 1)', w: 1 },
+          { id: 'FP_3', q: 'Recipe followed per SOP (Food Item 2)', w: 1 },
+          { id: 'FP_4', q: 'Build followed per SOP (Food Item 2)', w: 1 },
+          { id: 'FP_5', q: 'Used correct tools for preparation', w: 1 },
+          { id: 'FP_6', q: 'Used appropriate key to heat/warm food (Merry chef/Oven)', w: 1 },
+          { id: 'FP_7', q: 'Gloves changed correctly (veg/non-veg switch or as per TWC guidelines)', w: 1 },
+          { id: 'FP_8', q: 'Consistently follows Clean-As-You-Go', w: 1 },
+          { id: 'FP_9', q: 'Correct duster used for station cleaning', w: 1 },
+          { id: 'FP_10', q: 'Follows First-In-First-Out for food items', w: 1 },
+          { id: 'FP_11', q: 'Products checked visually before serving', w: 1 },
+          { id: 'FP_12', q: 'Chips, condiments, cutlery, etc., provided per SOP', w: 1 }
+        ]
+      },
+      {
+        id: 'StandardsOwnership',
+        title: 'Standards Ownership',
+        items: [
+          { id: 'SO_1', q: 'Serves only food that meets TWC standards (fresh, safe, proper temp); knows what to do if not', w: 1 }
+        ]
+      }
     ];
     const optionColors = { yes:'green', no:'red', na:'yellow' };
     const options = Object.entries(optionColors);
@@ -262,21 +283,21 @@
           // IMAGES (below remarks, still in section box)
           let imgH = 0;
           if(imgs[sec.id] && imgs[sec.id].length){
-  let imgPerRow = 6;
-  let imgW = 24, imgH = 24, gap = 6;
-  let baseX = 18, baseY = nextY;
-  imgs[sec.id].forEach((src, i)=>{
-    let row = Math.floor(i / imgPerRow);
-    let col = i % imgPerRow;
-    let x = baseX + col * (imgW + gap);
-    let y = baseY + row * (imgH + gap);
-    if(y > 265){ doc.addPage(); baseY = 20; y = baseY; }
-    doc.addImage(src,'JPEG', x, y, imgW, imgH);
-    imgH = Math.max(imgH, 24);
-  });
-  let rows = Math.ceil(imgs[sec.id].length / imgPerRow);
-  nextY = baseY + rows * (imgH + gap) + 2;
-}
+            let imgPerRow = 6;
+            let imgW = 24, imgH = 24, gap = 6;
+            let baseX = 18, baseY = nextY;
+            imgs[sec.id].forEach((src, i)=>{
+              let row = Math.floor(i / imgPerRow);
+              let col = i % imgPerRow;
+              let x = baseX + col * (imgW + gap);
+              let y = baseY + row * (imgH + gap);
+              if(y > 265){ doc.addPage(); baseY = 20; y = baseY; }
+              doc.addImage(src,'JPEG', x, y, imgW, imgH);
+              imgH = Math.max(imgH, 24);
+            });
+            let rows = Math.ceil(imgs[sec.id].length / imgPerRow);
+            nextY = baseY + rows * (imgH + gap) + 2;
+          }
           // Now draw the box *after* knowing full height
           const boxH = nextY-y+3;
           doc.setDrawColor('#b5bfc7');
